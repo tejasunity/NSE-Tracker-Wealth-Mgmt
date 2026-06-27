@@ -16,7 +16,7 @@
   --white:#FFFFFF; --bg:#F4F8F6; --card:#FFFFFF;
   --border:#DCE8E3; --border2:#C5D9D1;
   --text1:#0F2419; --text2:#3D5A4C; --text3:#7A9990;
-  --nav:64px; --hdr:56px;
+  --topbar:44px; --nav:60px;
   --radius:12px; --radius-sm:8px;
   --shadow:0 2px 8px rgba(11,61,46,0.10);
   --shadow-lg:0 8px 32px rgba(11,61,46,0.14);
@@ -27,9 +27,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 /* ── TOP BAR ── */
 #topbar{
   position:fixed;top:0;left:0;right:0;z-index:900;
-  background:var(--g1);height:38px;
+  background:var(--g1);
+  height:var(--topbar);
+  padding-top:env(safe-area-inset-top);
   display:flex;align-items:center;justify-content:space-between;
-  padding:0 14px;
+  padding-left:14px;padding-right:14px;
 }
 #topbar-left{display:flex;align-items:center;gap:8px}
 .app-name{color:#fff;font-size:13px;font-weight:800;letter-spacing:0.5px}
@@ -47,7 +49,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 #botnav{
   position:fixed;bottom:0;left:0;right:0;z-index:900;
   background:var(--card);border-top:1.5px solid var(--border);
-  height:var(--nav);display:flex;
+  display:flex;
   padding-bottom:env(safe-area-inset-bottom);
   box-shadow:0 -3px 16px rgba(11,61,46,0.08);
 }
@@ -55,7 +57,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:2px;border:none;background:transparent;cursor:pointer;
   font-size:10px;color:var(--text3);font-weight:600;letter-spacing:0.2px;
-  padding-bottom:2px;
+  min-height:var(--nav);padding-bottom:4px;
 }
 .nb.on{color:var(--g1)}
 .nb-ico{font-size:22px;line-height:1}
@@ -68,39 +70,40 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
 /* ── PAGES ── */
 .pg{
-  position:fixed;top:38px;left:0;right:0;
-  bottom:var(--nav);display:none;flex-direction:column;overflow:hidden;
+  position:fixed;top:var(--topbar);left:0;right:0;
+  bottom:calc(var(--nav) + env(safe-area-inset-bottom));
+  display:none;flex-direction:column;overflow:hidden;
 }
 .pg.on{display:flex}
 
 /* ── PAGE HEADER ── */
 .phdr{
   background:var(--card);border-bottom:1.5px solid var(--border);
-  padding:11px 14px 10px;flex-shrink:0;box-shadow:var(--shadow);
+  padding:10px 14px 9px;flex-shrink:0;box-shadow:var(--shadow);
 }
-.phdr-row1{display:flex;align-items:center;gap:8px}
-.phdr-title{font-size:18px;font-weight:800;color:var(--g1);letter-spacing:-0.3px}
-.phdr-sub{font-size:11px;color:var(--text3);margin-top:1px}
-.spacer{flex:1}
-.refresh-stamp{font-size:10.5px;color:var(--text3);text-align:right;line-height:1.5}
+.phdr-row1{display:flex;align-items:flex-start;gap:8px}
+.phdr-title{font-size:17px;font-weight:800;color:var(--g1);letter-spacing:-0.3px;line-height:1.2}
+.phdr-sub{font-size:10.5px;color:var(--text3);margin-top:2px}
+.spacer{flex:1;min-width:8px}
+.refresh-stamp{font-size:10px;color:var(--text3);text-align:right;line-height:1.4;white-space:nowrap}
 
 /* ── BUTTONS ── */
 .btn{
   display:inline-flex;align-items:center;gap:4px;
   border:none;border-radius:var(--radius-sm);cursor:pointer;
   font-weight:700;letter-spacing:0.1px;transition:all .12s;
-  white-space:nowrap;
+  white-space:nowrap;-webkit-user-select:none;
 }
-.btn-p{background:var(--g1);color:#fff;padding:7px 12px;font-size:12.5px}
-.btn-p:active{background:var(--g2)}
-.btn-o{background:transparent;color:var(--g1);border:1.5px solid var(--g1);padding:6px 11px;font-size:12.5px}
-.btn-o:active{background:var(--g5)}
-.btn-r{background:transparent;color:var(--r1);border:1.5px solid var(--r1);padding:6px 11px;font-size:12.5px}
-.btn-a{background:var(--a1);color:#fff;padding:7px 12px;font-size:12.5px}
-.hdr-btns{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap;align-items:center}
+.btn-p{background:var(--g1);color:#fff;padding:6px 11px;font-size:12px}
+.btn-p:active{background:var(--g2);transform:scale(0.97)}
+.btn-o{background:transparent;color:var(--g1);border:1.5px solid var(--g1);padding:5px 10px;font-size:12px}
+.btn-o:active{background:var(--g5);transform:scale(0.97)}
+.btn-r{background:transparent;color:var(--r1);border:1.5px solid var(--r1);padding:5px 10px;font-size:12px}
+.btn-a{background:var(--a1);color:#fff;padding:6px 11px;font-size:12px}
+.hdr-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
 
 /* ── SCROLL WRAP ── */
-.swrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.swrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 
 /* ── SECTION LABEL ── */
 .sec-lbl{
@@ -111,10 +114,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
 /* ── STOCK ROW ── */
 .srow{
-  display:flex;align-items:center;padding:10px 14px;
+  display:flex;align-items:center;padding:9px 14px;
   background:var(--card);border-bottom:1px solid var(--border);
   gap:8px;cursor:pointer;transition:background .1s;
   position:relative;user-select:none;-webkit-user-select:none;
+  min-height:64px;
 }
 .srow:active{background:var(--g5)}
 .srow.sel{background:var(--g4)}
@@ -173,7 +177,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
 /* ── DETAIL PAGE ── */
 #pg-detail{
-  position:fixed;top:38px;left:0;right:0;bottom:0;z-index:500;
+  position:fixed;top:var(--topbar);left:0;right:0;bottom:0;z-index:500;
   background:var(--bg);display:none;flex-direction:column;overflow:hidden;
 }
 #pg-detail.on{display:flex}
@@ -700,17 +704,24 @@ function checkGASConfig(){
   }
 }
 
-async function gasCall(params,ms=12000){
+async function gasCall(params, ms=12000){
   if(!GAS_READY) return null;
-  const url=GAS_URL+'?'+new URLSearchParams(params).toString();
+  const url = GAS_URL + '?' + new URLSearchParams(params).toString();
   try{
-    const ctrl=new AbortController();
-    const t=setTimeout(()=>ctrl.abort(),ms);
-    const r=await fetch(url,{signal:ctrl.signal});
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), ms);
+    const r = await fetch(url, {signal:ctrl.signal, cache:'no-store'});
     clearTimeout(t);
     if(!r.ok) return null;
-    return await r.json();
+    const json = await r.json();
+    return json;
   }catch(e){ return null; }
+}
+
+// Lightweight ping to wake Apps Script (send early, don't await)
+function wakeGAS(){
+  if(!GAS_READY) return;
+  fetch(GAS_URL+'?action=ping',{cache:'no-store'}).catch(()=>{});
 }
 
 // Single quote via proxy
@@ -1504,14 +1515,33 @@ function dlPDF(){
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 13. INIT
+// 13. INIT — render UI instantly from cache, fetch data in background
 // ══════════════════════════════════════════════════════════════════
-checkGASConfig();
-fetchNifty();
-renderMyList();
-if(DB.momSections?.length)renderMomentum(DB.momSections,false);
-if(DB.fundStocks?.length)renderFund(DB.fundStocks);
-if(DB.signals?.length)renderSignals(DB.signals);
+function init(){
+  // Step 1: Render everything from localStorage immediately — zero delay
+  renderMyList();
+  if(DB.momSections?.length) renderMomentum(DB.momSections, false);
+  if(DB.fundStocks?.length)  renderFund(DB.fundStocks);
+  if(DB.signals?.length)     renderSignals(DB.signals);
+
+  // Step 2: Show config warning after paint (non-blocking)
+  requestAnimationFrame(()=> setTimeout(checkGASConfig, 100));
+
+  // Step 2.5: Wake Apps Script immediately (cold start can take 3-5s)
+  wakeGAS();
+
+  // Step 3: Background refresh — only if GAS is configured, after 1.5s
+  // Gives the UI time to fully paint before any network calls
+  if(GAS_READY){
+    setTimeout(async ()=>{
+      await fetchNifty();               // updates Nifty chip silently
+      // Auto-refresh My List prices if data is stale (>5 min old)
+      const stale = DB.myList.length && DB.myList.some(s=>!s.price);
+      if(stale) await refreshMyList();
+    }, 1500);
+  }
+}
+init();
 </script>
 </body>
 </html>
