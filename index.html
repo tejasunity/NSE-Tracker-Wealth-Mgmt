@@ -679,122 +679,101 @@ function tickClock(){
 setInterval(tickClock,1000);tickClock();
 
 // ══════════════════════════════════════════════════════════════════
-// 4. DATA SOURCES — fetch chain
+// 4. DATA SOURCES — Apps Script Proxy (set your URL below)
 // ══════════════════════════════════════════════════════════════════
-const YF_BASE='https://query1.finance.yahoo.com';
-const YF2_BASE='https://query2.finance.yahoo.com';
 
-async function fetchWithTimeout(url,opts={},ms=9000){
-  const ctrl=new AbortController();
-  const t=setTimeout(()=>ctrl.abort(),ms);
-  try{
-    const r=await fetch(url,{...opts,signal:ctrl.signal});
-    clearTimeout(t);return r;
-  }catch(e){clearTimeout(t);throw e;}
+// ▼▼▼ PASTE YOUR APPS SCRIPT WEB APP URL HERE ▼▼▼
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzjZNjhIdR8F3RFqQ4OHuNeSsAsLN3CcgNDnT_tgBAb8ddvUAwe1kZP_MNbB15SywQN/exec';
+// ▲▲▲ e.g. https://script.google.com/macros/s/XXXXXX/exec ▲▲▲
+
+const GAS_READY = GAS_URL !== 'YOUR_APPS_SCRIPT_URL';
+
+// Show banner if not configured
+function checkGASConfig(){
+  if(!GAS_READY){
+    const banner=document.createElement('div');
+    banner.className='warn-banner';
+    banner.innerHTML='⚙️ <strong>Setup needed:</strong> Open index.html and paste your Apps Script URL into <code>GAS_URL</code> on line ~340. See README for steps.';
+    banner.style.cssText='position:fixed;top:38px;left:0;right:0;z-index:800;font-size:12px;padding:9px 14px;background:#FFF8E1;border-bottom:1px solid #FFE082;color:#5D4037';
+    document.body.appendChild(banner);
+    setTimeout(()=>banner.remove(),8000);
+  }
 }
 
-// Quote from Yahoo Finance (primary for price/pe/volume)
+async function gasCall(params,ms=12000){
+  if(!GAS_READY) return null;
+  const url=GAS_URL+'?'+new URLSearchParams(params).toString();
+  try{
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(),ms);
+    const r=await fetch(url,{signal:ctrl.signal});
+    clearTimeout(t);
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+
+// Single quote via proxy
 async function yfQuote(sym){
+  if(GAS_READY){
+    const d=await gasCall({action:'quote',sym});
+    if(d&&d.price) return d;
+  }
+  // Direct Yahoo fallback (may hit CORS on Safari — proxy preferred)
   try{
-    const r=await fetchWithTimeout(`${YF_BASE}/v8/finance/chart/${sym}.NS?interval=1d&range=5d`);
-    if(!r.ok)return null;
-    const d=await r.json();
-    const m=d.result?.[0]?.meta;
-    if(!m)return null;
-    return {
-      price:m.regularMarketPrice,
-      prevClose:m.previousClose,
-      open:m.regularMarketOpen,
-      high:m.regularMarketDayHigh,
-      low:m.regularMarketDayLow,
-      vol:m.regularMarketVolume,
-      high52:m['52WeekHigh'],
-      low52:m['52WeekLow'],
-      marketCap:m.marketCap,
-      pe:m.trailingPE||null,
-      chg:m.regularMarketPrice&&m.previousClose?((m.regularMarketPrice-m.previousClose)/m.previousClose*100):0,
-      chgAbs:m.regularMarketPrice&&m.previousClose?(m.regularMarketPrice-m.previousClose):0,
-      currency:m.currency,
-      _src:'Yahoo Finance',
-    };
-  }catch(e){return null;}
-}
-
-// Summary detail from Yahoo Finance v10 (fundamentals)
-async function yfSummary(sym){
-  try{
-    const url=`${YF_BASE}/v10/finance/quoteSummary/${sym}.NS?modules=summaryDetail,financialData,defaultKeyStatistics,assetProfile,earnings`;
-    const r=await fetchWithTimeout(url);
-    if(!r.ok)return null;
-    const d=await r.json();
-    const res=d.quoteSummary?.result?.[0];
-    if(!res)return null;
-    const fd=res.financialData||{};
-    const ks=res.defaultKeyStatistics||{};
-    const sd=res.summaryDetail||{};
-    const ap=res.assetProfile||{};
-    const pct=v=>v?.raw!=null?(v.raw*100).toFixed(1)+'%':null;
-    const raw=v=>v?.raw??null;
-    return {
-      roe:pct(fd.returnOnEquity),
-      roa:pct(fd.returnOnAssets),
-      roce:null, // computed below if possible
-      debtToEquity:raw(fd.debtToEquity),
-      currentRatio:raw(fd.currentRatio)?.toFixed(2)||null,
-      quickRatio:raw(fd.quickRatio)?.toFixed(2)||null,
-      grossMargin:pct(fd.grossMargins),
-      opMargin:pct(fd.operatingMargins),
-      netMargin:pct(fd.profitMargins),
-      revGrowth:pct(fd.revenueGrowth),
-      earningsGrowth:pct(fd.earningsGrowthRate),
-      totalCash:raw(fd.totalCash),
-      totalDebt:raw(fd.totalDebt),
-      freeCashflow:raw(fd.freeCashflow),
-      eps:raw(ks.trailingEps),
-      bookValue:raw(ks.bookValue),
-      pbRatio:raw(ks.priceToBook)?.toFixed(2)||null,
-      beta:raw(ks.beta)?.toFixed(2)||null,
-      peg:raw(ks.pegRatio)?.toFixed(2)||null,
-      forwardPE:raw(ks.forwardPE)?.toFixed(1)||null,
-      shortRatio:raw(ks.shortRatio)?.toFixed(2)||null,
-      sharesOut:raw(ks.sharesOutstanding),
-      floatShares:raw(ks.floatShares),
-      insiderPct:pct(ks.heldPercentInsiders),
-      instPct:pct(ks.heldPercentInstitutions),
-      divYield:sd.dividendYield?.raw?(sd.dividendYield.raw*100).toFixed(2)+'%':null,
-      payoutRatio:pct(sd.payoutRatio),
-      sector:ap.sector||null,
-      industry:ap.industry||null,
-      employees:ap.fullTimeEmployees||null,
-      description:ap.longBusinessSummary||null,
-      _src:'Yahoo Finance',
-    };
-  }catch(e){return null;}
-}
-
-// NSE gainers/losers/circuit via Yahoo screener
-async function yfScreener(scrId,count=20){
-  try{
-    const url=`${YF_BASE}/v1/finance/screener/predefined/saved?formatted=false&scrIds=${scrId}&count=${count}&region=IN&lang=en-IN`;
-    const r=await fetchWithTimeout(url);
-    if(!r.ok)return[];
-    const d=await r.json();
-    return(d.finance?.result?.[0]?.quotes||[]).filter(q=>q.symbol?.endsWith('.NS'));
-  }catch(e){return[];}
-}
-
-// Nifty 50 index
-async function fetchNifty(){
-  try{
-    const r=await fetchWithTimeout(`${YF_BASE}/v8/finance/chart/%5ENSEI?interval=1d&range=1d`);
-    if(!r.ok)return;
-    const d=await r.json();
-    const m=d.result?.[0]?.meta;
-    if(m){
-      DB.nifty={price:m.regularMarketPrice?.toFixed(2),chg:((m.regularMarketPrice-m.previousClose)/m.previousClose*100)};
-      saveDB();
-    }
+    const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}.NS?interval=1d&range=5d`,{signal:AbortSignal.timeout(8000)});
+    if(r.ok){const d=await r.json();const m=d.result?.[0]?.meta;if(m)return{price:m.regularMarketPrice,prevClose:m.previousClose,open:m.regularMarketOpen,high:m.regularMarketDayHigh,low:m.regularMarketDayLow,vol:m.regularMarketVolume,high52:m['52WeekHigh'],low52:m['52WeekLow'],marketCap:m.marketCap,pe:m.trailingPE||null,chg:m.previousClose?((m.regularMarketPrice-m.previousClose)/m.previousClose*100):0,chgAbs:m.previousClose?(m.regularMarketPrice-m.previousClose):0,_src:'Yahoo Direct'};}
   }catch(e){}
+  return null;
+}
+
+// Batch quotes (up to 50) via proxy
+async function yfBatch(syms){
+  if(!syms.length) return {};
+  if(GAS_READY){
+    const d=await gasCall({action:'quotes',syms:syms.join(',')},20000);
+    if(d&&d.quotes) return d.quotes;
+  }
+  // Direct Yahoo batch fallback
+  try{
+    const tickers=syms.map(s=>s+'.NS').join(',');
+    const r=await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(tickers)}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange,regularMarketVolume,regularMarketPreviousClose,trailingPE,marketCap,fiftyTwoWeekHigh,fiftyTwoWeekLow`,{signal:AbortSignal.timeout(10000)});
+    if(r.ok){const d=await r.json();const res={};(d.quoteResponse?.result||[]).forEach(q=>{const s=q.symbol.replace('.NS','');res[s]={sym:s,price:q.regularMarketPrice,chg:q.regularMarketChangePercent,chgAbs:q.regularMarketChange,vol:q.regularMarketVolume,prevClose:q.regularMarketPreviousClose,pe:q.trailingPE,marketCap:q.marketCap,high52:q.fiftyTwoWeekHigh,low52:q.fiftyTwoWeekLow,_src:'Yahoo Direct'};});return res;}
+  }catch(e){}
+  return {};
+}
+
+// Fundamental detail via proxy
+async function yfSummary(sym){
+  if(GAS_READY){
+    const d=await gasCall({action:'fundamental',sym},15000);
+    if(d&&!d.error) return d;
+  }
+  // Direct Yahoo v10 fallback
+  try{
+    const r=await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${sym}.NS?modules=summaryDetail,financialData,defaultKeyStatistics,assetProfile`,{signal:AbortSignal.timeout(10000)});
+    if(r.ok){const d=await r.json();const res=d.quoteSummary?.result?.[0];if(res){const fd=res.financialData||{};const ks=res.defaultKeyStatistics||{};const sd=res.summaryDetail||{};const ap=res.assetProfile||{};const pct=v=>v?.raw!=null?(v.raw*100).toFixed(1)+'%':null;const raw=v=>v?.raw??null;return{roe:pct(fd.returnOnEquity),roa:pct(fd.returnOnAssets),debtToEquity:raw(fd.debtToEquity),currentRatio:raw(fd.currentRatio)?.toFixed(2)||null,quickRatio:raw(fd.quickRatio)?.toFixed(2)||null,grossMargin:pct(fd.grossMargins),opMargin:pct(fd.operatingMargins),netMargin:pct(fd.profitMargins),revGrowth:pct(fd.revenueGrowth),earningsGrowth:pct(fd.earningsGrowthRate),totalCash:raw(fd.totalCash),totalDebt:raw(fd.totalDebt),freeCashflow:raw(fd.freeCashflow),eps:raw(ks.trailingEps),bookValue:raw(ks.bookValue),pbRatio:raw(ks.priceToBook)?.toFixed(2)||null,beta:raw(ks.beta)?.toFixed(2)||null,peg:raw(ks.pegRatio)?.toFixed(2)||null,forwardPE:raw(ks.forwardPE)?.toFixed(1)||null,sharesOut:raw(ks.sharesOutstanding),floatShares:raw(ks.floatShares),insiderPct:pct(ks.heldPercentInsiders),instPct:pct(ks.heldPercentInstitutions),divYield:sd.dividendYield?.raw?(sd.dividendYield.raw*100).toFixed(2)+'%':null,payoutRatio:pct(sd.payoutRatio),sector:ap.sector||null,industry:ap.industry||null,employees:ap.fullTimeEmployees||null,description:ap.longBusinessSummary||null,_src:'Yahoo Direct'};}
+  }catch(e){}
+  return null;
+}
+
+// Nifty index via proxy
+async function fetchNifty(){
+  const d= GAS_READY ? await gasCall({action:'nifty'}) : null;
+  if(d&&d.price){ DB.nifty={price:Number(d.price).toFixed(2),chg:d.chg}; saveDB(); return; }
+  try{
+    const r=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1d',{signal:AbortSignal.timeout(8000)});
+    if(r.ok){const d=await r.json();const m=d.result?.[0]?.meta;if(m){DB.nifty={price:m.regularMarketPrice?.toFixed(2),chg:((m.regularMarketPrice-m.previousClose)/m.previousClose*100)};saveDB();}}
+  }catch(e){}
+}
+
+// Circuit stocks via proxy
+async function fetchCircuitsFromProxy(){
+  if(GAS_READY){
+    const d=await gasCall({action:'circuits'},15000);
+    if(d&&(d.UC||d.LC)) return d;
+  }
+  return {UC:[],LC:[]};
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -945,19 +924,33 @@ function delSel(){const n=DB.myList.filter(s=>s._sel).length;if(!n){toast('Selec
 
 async function refreshMyList(){
   if(!DB.myList.length){toast('Add stocks first');return}
-  toast('Refreshing…');fetchNifty();
-  for(let s of DB.myList){
-    const q=await yfQuote(s.sym);
-    if(q)Object.assign(s,q);
-    // circuit detection
-    if(s.price&&s.prevClose){
-      const cl=(s.price-s.prevClose)/s.prevClose*100;
-      if(cl>=9.9)s.circuit='UC';
-      else if(cl<=-9.9)s.circuit='LC';
-      else delete s.circuit;
+  toast('Refreshing prices...');fetchNifty();
+  // Batch fetch all at once via proxy
+  const syms=DB.myList.map(s=>s.sym);
+  const batch=await yfBatch(syms);
+  DB.myList.forEach(s=>{
+    const q=batch[s.sym];
+    if(q){
+      Object.assign(s,q);
+      if(s.price&&s.prevClose){
+        const cl=(s.price-s.prevClose)/s.prevClose*100;
+        if(cl>=9.9)s.circuit='UC';
+        else if(cl<=-9.9)s.circuit='LC';
+        else delete s.circuit;
+      }
+      const fu=FUND_UNIVERSE.find(f=>f.sym===s.sym);
+      if(fu)Object.assign(s,{...fu,...s});
+      const sig=signalScore(s);s.verdict=sig.verdict;s.conf=sig.conf;
     }
+  });
+  // For missed ones, fetch individually
+  const missed=DB.myList.filter(s=>!s.price);
+  for(const s of missed){
+    const q=await yfQuote(s.sym);
+    if(q){Object.assign(s,q);if(s.price&&s.prevClose){const cl=(s.price-s.prevClose)/s.prevClose*100;if(cl>=9.9)s.circuit='UC';else if(cl<=-9.9)s.circuit='LC';else delete s.circuit;}}
+    await new Promise(r=>setTimeout(r,150));
   }
-  saveDB();renderMyList();toast('Updated ✓');
+  saveDB();renderMyList();toast('Updated ' + syms.length + ' stocks');
 }
 
 // ADD STOCK
@@ -981,57 +974,59 @@ async function addStock(sym,name,cap){
 // ══════════════════════════════════════════════════════════════════
 async function loadMomentum(){
   const body=document.getElementById('mom-body');
-  body.innerHTML='<div class="loading"><div class="spin"></div><div class="loading-t">Fetching circuit & momentum data…</div></div>';
+  body.innerHTML='<div class="loading"><div class="spin"></div><div class="loading-t">Fetching circuits & momentum via Apps Script…</div></div>';
   fetchNifty();
   const sections=[];
-  // 8a. Circuit detection via NSE India API
-  const circuitStocks=await fetchCircuits();
-  if(circuitStocks.UC.length||circuitStocks.LC.length){
-    if(circuitStocks.UC.length)sections.push({label:'⚡ Upper Circuit Stocks',sub:'NSE — All caps, any volume',stocks:circuitStocks.UC});
-    if(circuitStocks.LC.length)sections.push({label:'⚡ Lower Circuit Stocks',sub:'NSE — All caps, any volume',stocks:circuitStocks.LC});
+  let usedFallback=false;
+
+  if(GAS_READY){
+    // Use Apps Script proxy — gets NSE + Yahoo in one call
+    toast('Connecting to NSE via proxy…');
+    const mom=await gasCall({action:'momentum'},20000);
+    if(mom){
+      const {circuits,gainers,losers,active}=mom;
+      if(circuits?.UC?.length) sections.push({label:'⚡ Upper Circuit Stocks',sub:'NSE India — All caps, any volume',stocks:circuits.UC.map(s=>({...s,circuit:'UC'}))});
+      if(circuits?.LC?.length) sections.push({label:'⚡ Lower Circuit Stocks',sub:'NSE India — All caps, any volume',stocks:circuits.LC.map(s=>({...s,circuit:'LC'}))});
+      if(gainers?.stocks?.length) sections.push({label:'🚀 Top Gainers — Today',sub:'NSE / Yahoo Finance',stocks:gainers.stocks});
+      if(losers?.stocks?.length) sections.push({label:'🔻 Top Losers — Today',sub:'NSE / Yahoo Finance',stocks:losers.stocks});
+      if(active?.stocks?.length) sections.push({label:'🔥 Volume Leaders — Today',sub:'NSE / Yahoo Finance',stocks:active.stocks});
+    }
+    // Also scan My List for circuits detected during refresh
+    DB.myList.forEach(s=>{
+      if(s.circuit==='UC'&&!sections[0]?.stocks?.find(x=>x.sym===s.sym)){
+        if(!sections.find(sec=>sec.label.includes('Upper')))sections.unshift({label:'⚡ Upper Circuit Stocks',sub:'From My List',stocks:[]});
+        sections.find(sec=>sec.label.includes('Upper'))?.stocks.push({...s});
+      }
+    });
   }
-  // 8b. Yahoo screeners
-  const [gainers,losers,active]=await Promise.all([
-    yfScreener('day_gainers',20),
-    yfScreener('day_losers',20),
-    yfScreener('most_actives',20),
-  ]);
-  const mapQ=q=>({sym:q.symbol.replace('.NS',''),name:q.shortName||q.longName||q.symbol.replace('.NS',''),price:q.regularMarketPrice||null,chg:q.regularMarketChangePercent||0,vol:q.regularMarketVolume||null,pe:q.trailingPE||null,marketCap:q.marketCap,cap:capFromMC(q.marketCap),_est:false});
-  if(gainers.length)sections.push({label:'🚀 Top Gainers — Today',sub:'Yahoo Finance · NSE',stocks:gainers.map(mapQ)});
-  if(losers.length)sections.push({label:'🔻 Top Losers — Today',sub:'Yahoo Finance · NSE',stocks:losers.map(mapQ)});
-  if(active.length)sections.push({label:'🔥 Volume Leaders — Today',sub:'Yahoo Finance · NSE',stocks:active.map(mapQ)});
+
+  // Fallback: direct fetch if proxy not configured or returned empty
+  if(!sections.length){
+    // Try direct Yahoo screener (may work depending on network)
+    try{
+      const [g,l,a]=await Promise.all([
+        fetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=day_gainers&count=20&region=IN&lang=en-IN',{signal:AbortSignal.timeout(8000)}).then(r=>r.ok?r.json():null).catch(()=>null),
+        fetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=day_losers&count=20&region=IN&lang=en-IN',{signal:AbortSignal.timeout(8000)}).then(r=>r.ok?r.json():null).catch(()=>null),
+        fetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=most_actives&count=20&region=IN&lang=en-IN',{signal:AbortSignal.timeout(8000)}).then(r=>r.ok?r.json():null).catch(()=>null),
+      ]);
+      const mapQ=q=>({sym:q.symbol.replace('.NS',''),name:q.shortName||q.longName||q.symbol.replace('.NS',''),price:q.regularMarketPrice||null,chg:q.regularMarketChangePercent||0,chgAbs:q.regularMarketChange||0,vol:q.regularMarketVolume||null,pe:q.trailingPE||null,marketCap:q.marketCap,cap:capFromMC(q.marketCap)});
+      const gq=(g?.finance?.result?.[0]?.quotes||[]).filter(q=>q.symbol?.endsWith('.NS'));
+      const lq=(l?.finance?.result?.[0]?.quotes||[]).filter(q=>q.symbol?.endsWith('.NS'));
+      const aq=(a?.finance?.result?.[0]?.quotes||[]).filter(q=>q.symbol?.endsWith('.NS'));
+      if(gq.length)sections.push({label:'🚀 Top Gainers — Today',sub:'Yahoo Finance Direct',stocks:gq.map(mapQ)});
+      if(lq.length)sections.push({label:'🔻 Top Losers — Today',sub:'Yahoo Finance Direct',stocks:lq.map(mapQ)});
+      if(aq.length)sections.push({label:'🔥 Volume Leaders — Today',sub:'Yahoo Finance Direct',stocks:aq.map(mapQ)});
+    }catch(e){}
+  }
+
   if(!sections.length){
     sections.push(...buildFallbackMom());
-    body.innerHTML=`<div class="warn-banner">⚠️ Live NSE data unavailable. Showing estimated data — tap Refresh to retry.</div>`;
+    usedFallback=true;
   }
-  DB.momSections=sections;DB.lastMom=new Date().toISOString();saveDB();
-  renderMomentum(sections,!!sections.find(s=>s._fallback));
-}
 
-async function fetchCircuits(){
-  const UC=[],LC=[];
-  // NSE live analysis variations endpoint
-  try{
-    const r=await fetchWithTimeout('https://www.nseindia.com/api/live-analysis-variations?index=shortellVolume',{headers:{'User-Agent':'Mozilla/5.0','Accept':'application/json'}});
-    if(r.ok){const d=await r.json();/* parse if available */}
-  }catch(e){}
-  // Try NSE's circuit limit page
-  try{
-    const r=await fetchWithTimeout('https://www.nseindia.com/api/live-analysis-data?index=circuitStocks',{headers:{'Accept':'application/json'}});
-    if(r.ok){
-      const d=await r.json();
-      (d.data||[]).forEach(x=>{
-        const s={sym:x.symbol,name:x.companyName||x.symbol,price:x.lastPrice||null,chg:x.pChange||0,vol:x.totalVolume||null,pe:x.pe||null,cap:x.isinCode?'M':'M'};
-        if(x.series==='EQ'){if(x.pChange>0)UC.push(s);else LC.push(s);}
-      });
-    }
-  }catch(e){}
-  // Also scan My List for circuits
-  DB.myList.forEach(s=>{
-    if(s.circuit==='UC'&&!UC.find(x=>x.sym===s.sym))UC.push({...s});
-    if(s.circuit==='LC'&&!LC.find(x=>x.sym===s.sym))LC.push({...s});
-  });
-  return{UC,LC};
+  DB.momSections=sections;DB.lastMom=new Date().toISOString();saveDB();
+  renderMomentum(sections,usedFallback);
+  if(!GAS_READY) toast('⚠️ Set GAS_URL in index.html for live NSE data');
 }
 
 function capFromMC(mc){if(!mc)return'M';if(mc>5e12)return'L';if(mc>5e11)return'M';return'S'}
@@ -1511,6 +1506,7 @@ function dlPDF(){
 // ══════════════════════════════════════════════════════════════════
 // 13. INIT
 // ══════════════════════════════════════════════════════════════════
+checkGASConfig();
 fetchNifty();
 renderMyList();
 if(DB.momSections?.length)renderMomentum(DB.momSections,false);
