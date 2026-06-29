@@ -726,14 +726,15 @@ function loadMomentum(){
       if(g&&g.stocks&&g.stocks.length)sections.push({lbl:'&#128640; Top Gainers Today',sub:'NSE / Yahoo Finance',stocks:g.stocks});
       if(l&&l.stocks&&l.stocks.length)sections.push({lbl:'&#128315; Top Losers Today',sub:'NSE / Yahoo Finance',stocks:l.stocks});
       if(a&&a.stocks&&a.stocks.length)sections.push({lbl:'&#128293; Volume Leaders Today',sub:'NSE / Yahoo Finance',stocks:a.stocks});
+      var mn=mom.momentum;if(mn&&mn.stocks&&mn.stocks.length)sections.push({lbl:'&#128200; High Momentum Stocks',sub:'NSE / Yahoo Finance',stocks:mn.stocks});
     }
     if(!sections.length){
       var p1=safeFetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=day_gainers&count=20&region=IN&lang=en-IN',10000);
       var p2=safeFetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=day_losers&count=20&region=IN&lang=en-IN',10000);
       var p3=safeFetch('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=most_actives&count=20&region=IN&lang=en-IN',10000);
       Promise.all([p1,p2,p3]).then(function(rs){
-        function mapQ(q){return{sym:q.symbol.replace('.NS',''),name:q.shortName||q.symbol.replace('.NS',''),price:q.regularMarketPrice||null,chg:q.regularMarketChangePercent||0,vol:q.regularMarketVolume||null,pe:q.trailingPE||null,marketCap:q.marketCap,cap:q.marketCap>5e12?'L':q.marketCap>5e11?'M':'S'}}
-        var ps=rs.map(function(r){if(!r)return Promise.resolve([]);return r.json().then(function(d){return((d.finance&&d.finance.result&&d.finance.result[0]&&d.finance.result[0].quotes)||[]).filter(function(q){return q.symbol&&q.symbol.endsWith('.NS')}).map(mapQ)}).catch(function(){return[]})});
+        var ps=rs.map(function(r){if(!r)return Promise.resolve([]);return r.json().then(function(d){return((d.finance&&d.finance.result&&d.finance.result[0]&&d.finance.result[0].quotes)||[]).filter(function(q){return q.symbol&&q.symbol.endsWith('.NS')}).map(function(q){return{sym:q.symbol.replace('.NS',''),name:q.shortName||q.symbol.replace('.NS',''),price:q.regularMarketPrice||null,chg:q.regularMarketChangePercent||0,chgAbs:q.regularMarketChange||0,vol:q.regularMarketVolume||null,pe:q.trailingPE||null,marketCap:q.marketCap,cap:q.marketCap>5e12?'L':q.marketCap>5e11?'M':'S'}})}).catch(function(){return[]})});"""
+
         Promise.all(ps).then(function(arrs){
           if(arrs[0].length)sections.push({lbl:'&#128640; Top Gainers',sub:'Yahoo Finance',stocks:arrs[0]});
           if(arrs[1].length)sections.push({lbl:'&#128315; Top Losers',sub:'Yahoo Finance',stocks:arrs[1]});
@@ -775,28 +776,29 @@ function loadFund(){
   var sorted=FUND_UNI.slice().sort(function(a,b){return(b.piotroski-a.piotroski)||parseFloat(b.roe)-parseFloat(a.roe)});
   sorted.forEach(function(s){var sg=sigScore(s);s.verdict=sg.verdict;s.conf=sg.conf});
   DB.fundStocks=sorted;DB.lastFund=new Date().toISOString();saveDB();renderFund(sorted);
-  var i=0;function enrich(){if(i>=12)return;var s=sorted[i++];yfQuote(s.sym).then(function(q){if(q){Object.assign(s,q);var sg=sigScore(s);s.verdict=sg.verdict;s.conf=sg.conf;DB.fundStocks=sorted;saveDB();renderFund(sorted)}setTimeout(enrich,350)})}
-  setTimeout(enrich,600);
+  var _fi=0;var _fsorted=sorted;
+  var _fenrich=function(){if(_fi>=12)return;var s=_fsorted[_fi++];yfQuote(s.sym).then(function(q){if(q){var ks=Object.keys(q);for(var ki=0;ki<ks.length;ki++)s[ks[ki]]=q[ks[ki]];var sg=sigScore(s);s.verdict=sg.verdict;s.conf=sg.conf;DB.fundStocks=_fsorted;saveDB();renderFund(_fsorted)}setTimeout(_fenrich,350)})};
+  setTimeout(_fenrich,600);
+}
+function fundMkRow(s){
+  var ip=(s.chg||0)>=0;
+  var sB=s.verdict?('<span class="b b-'+s.verdict+'">'+s.verdict.toUpperCase()+(s.conf?' '+s.conf+'%':'')+'</span>'):'';
+  var obj=JSON.stringify({sym:s.sym,name:s.name,cap:s.cap,price:s.price,chg:s.chg,vol:s.vol,pe:s.pe,debtToEquity:s.de,roe:s.roe,piotroski:s.piotroski,revGrowth:s.revGrowth,netMargin:s.netMargin,sector:s.sector});
+  return'<div class="srow" onclick=\'openDetail('+obj.replace(/'/g,"&#39;")+')\'>'+
+    '<div class="si"><div class="ssym">'+s.sym+'</div><div class="sname">'+s.name+'</div>'+
+    '<div class="sbadges">'+capB(s.cap||'M')+sB+'<span class="b b-fund">ROE '+s.roe+'</span><span class="b" style="background:#ECEFF1;color:#546E7A">P:'+s.piotroski+'/9</span></div></div>'+
+    '<div class="sd"><div class="sprice">'+(s.price?fINR(s.price):'&#8212;')+'</div>'+
+    '<div class="schg '+pc(s.chg||0)+'">'+(s.chg!=null?(ip?'+':'')+(s.chg||0).toFixed(2)+'%':'&#8212;')+'</div>'+
+    '<div class="smeta">D/E:'+(s.de!=null?Number(s.de).toFixed(2):'&#8212;')+' P/E:'+(s.pe?Number(s.pe).toFixed(1):'&#8212;')+'</div></div>'+
+    '<div class="chev">&#8250;</div></div>';
 }
 function renderFund(stocks){
   if(DB.lastFund)document.getElementById('fund-stamp').innerHTML='Updated<br><strong>'+fmtIST(DB.lastFund)+' IST</strong>';
   var hi=[],md=[],lo=[];stocks.forEach(function(s){if(s.piotroski>=7)hi.push(s);else if(s.piotroski>=5)md.push(s);else lo.push(s)});
-  function mkRows(arr){return arr.map(function(s){
-    var ip=(s.chg||0)>=0;
-    var sB=s.verdict?('<span class="b b-'+s.verdict+'">'+s.verdict.toUpperCase()+(s.conf?' '+s.conf+'%':'')+'</span>'):'';
-    var obj=JSON.stringify({sym:s.sym,name:s.name,cap:s.cap,price:s.price,chg:s.chg,vol:s.vol,pe:s.pe||s.pe,debtToEquity:s.de,roe:s.roe,piotroski:s.piotroski,revGrowth:s.revGrowth,netMargin:s.netMargin,sector:s.sector});
-    return'<div class="srow" onclick=\'openDetail('+obj.replace(/'/g,"&#39;")+')\'>'+
-      '<div class="si"><div class="ssym">'+s.sym+'</div><div class="sname">'+s.name+'</div>'+
-      '<div class="sbadges">'+capB(s.cap||'M')+sB+'<span class="b b-fund">ROE '+s.roe+'</span><span class="b" style="background:#ECEFF1;color:#546E7A">P:'+s.piotroski+'/9</span></div></div>'+
-      '<div class="sd"><div class="sprice">'+(s.price?fINR(s.price):'&#8212;')+'</div>'+
-      '<div class="schg '+pc(s.chg||0)+'">'+(s.chg!=null?(ip?'+':'')+(s.chg||0).toFixed(2)+'%':'&#8212;')+'</div>'+
-      '<div class="smeta">D/E:'+(s.de!=null?Number(s.de).toFixed(2):'&#8212;')+' P/E:'+(s.pe?Number(s.pe).toFixed(1):'&#8212;')+'</div></div>'+
-      '<div class="chev">&#8250;</div></div>';
-  }).join('')}
-  var html='';
-  if(hi.length)html+='<div class="slbl">&#9989; Piotroski 7\u20139 \u2014 High Quality</div>'+mkRows(hi);
-  if(md.length)html+='<div class="slbl">&#128993; Piotroski 5\u20136 \u2014 Moderate</div>'+mkRows(md);
-  if(lo.length)html+='<div class="slbl">&#9888;&#65039; Piotroski &#8804;4 \u2014 Watch</div>'+mkRows(lo);
+  var html='';;
+  if(hi.length)html+='<div class="slbl">&#9989; Piotroski 7-9 - High Quality</div>'+hi.map(fundMkRow).join('');
+  if(md.length)html+='<div class="slbl">&#128993; Piotroski 5-6 - Moderate</div>'+md.map(fundMkRow).join('');
+  if(lo.length)html+='<div class="slbl">&#9888; Piotroski 4 and below - Watch</div>'+lo.map(fundMkRow).join('');
   document.getElementById('fund-body').innerHTML=html;
 }
 
