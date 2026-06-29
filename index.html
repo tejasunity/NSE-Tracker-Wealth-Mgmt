@@ -720,8 +720,8 @@ function loadMomentum(){
     var sections=[];
     if(mom){
       var c=mom.circuits||{};
-      if(c.UC&&c.UC.length)sections.push({lbl:'&#9889; Upper Circuit Stocks',sub:'NSE \u2014 all caps',stocks:c.UC.map(function(s){return Object.assign({},s,{circuit:'UC'})})});
-      if(c.LC&&c.LC.length)sections.push({lbl:'&#9889; Lower Circuit Stocks',sub:'NSE \u2014 all caps',stocks:c.LC.map(function(s){return Object.assign({},s,{circuit:'LC'})})});
+      if(c.UC&&c.UC.length)sections.push({lbl:'&#9889; Upper Circuit Stocks',sub:'NSE - all caps',stocks:c.UC.map(function(s){return Object.assign({},s,{circuit:'UC'})})});
+      if(c.LC&&c.LC.length)sections.push({lbl:'&#9889; Lower Circuit Stocks',sub:'NSE - all caps',stocks:c.LC.map(function(s){return Object.assign({},s,{circuit:'LC'})})});
       var g=mom.gainers,l=mom.losers,a=mom.active;
       if(g&&g.stocks&&g.stocks.length)sections.push({lbl:'&#128640; Top Gainers Today',sub:'NSE / Yahoo Finance',stocks:g.stocks});
       if(l&&l.stocks&&l.stocks.length)sections.push({lbl:'&#128315; Top Losers Today',sub:'NSE / Yahoo Finance',stocks:l.stocks});
@@ -750,7 +750,7 @@ function loadMomentum(){
 }
 function renderMomentum(sections,fallback){
   if(DB.lastMom)document.getElementById('mom-stamp').innerHTML='Updated<br><strong>'+fmtIST(DB.lastMom)+' IST</strong>';
-  var html=fallback?'<div class="wbanner">&#9888;&#65039; Live NSE data unavailable \u2014 configure Apps Script URL or check connection.</div>':'';
+  var html=fallback?'<div class="wbanner">&#9888;&#65039; Live NSE data unavailable - configure Apps Script URL or check connection.</div>':'';
   sections.forEach(function(sec){
     html+='<div class="slbl">'+sec.lbl+(sec.sub?' <span style="opacity:.6;font-size:9px">\u00B7 '+sec.sub+'</span>':'')+'</div>';
     (sec.stocks||[]).forEach(function(s){
